@@ -5,8 +5,9 @@ import threading
 import sys
 import time
 from random import randint
+from timeit import default_timer as timer
 
-BYTE_SIZE = 1024
+BYTE_SIZE = 2048
 HOST = '127.0.0.1'
 PORT = 5000
 PEER_BYTE_DIFFERENTIATOR = b'\x11' 
@@ -17,7 +18,7 @@ REQUEST_STRING = "req"
 ############################ SERVER #####################################
 class Server: 
 
-
+    #  construtor
     def __init__(self, msg):
         try:
             # the message to upload in bytes
@@ -25,6 +26,8 @@ class Server:
 
             # define um socket
             self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            # permite que varios processos (e seus respectivos sockets) se associem a mesma porta de uma maquina. 
+            # Para  evitar erros no bind
             self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
             self.connections = []
@@ -35,10 +38,10 @@ class Server:
             # fornece a porta/sokcet a um processo
             self.s.bind((HOST, PORT))
 
-            # llista para conexao
+            # lista para conexao
             self.s.listen(1)
 
-            print("-" * 12+ "Rodando o Servidor"+ "-" *21)
+            print("-"*12 + " Rodando o Servidor " + "-"*12)
             
             self.run()
         except Exception as e:
@@ -66,8 +69,9 @@ class Server:
                         # desconecta o par
                         self.disconnect(connection, a)
                         return
+
                     elif data and data.decode('utf-8') == REQUEST_STRING:
-                        print("-" * 21 + " UPLOADING " + "-" * 21)
+                        print("-"*12 + " UPLOADING " + "-"*12)
                         # se a conexão ainda estiver ativa, enviamos de volta os dados
                         # esta parte trata do upload do arquivo
                         connection.send(self.msg)
@@ -77,21 +81,21 @@ class Server:
 
 
     """
-        Este método é executado quando o usuário desconecta
+        Este metodo e executado quando o usuario desconecta
     """
     def disconnect(self, connection, a):
         self.connections.remove(connection)
         self.peers.remove(a)
         connection.close()
         self.send_peers()
-        print("{}, disconnected".format(a))
-        print("-" * 50)
+        print('f{a}, foi desconectado')
+        print("-" * 12)
 
 
 
     """
-        Este método é usado para executar o servidor
-        Este método cria um tópico diferente para cada cliente
+        Este metodo e usado para executar o servidor
+        Este metodo cria um tópico diferente para cada cliente
     """
     def run(self):
         # constantly listeen for connections
@@ -100,15 +104,15 @@ class Server:
 
             # append to the list of peers 
             self.peers.append(a)
-            print("Peers are: {}".format(self.peers) )
+            print(f'Os pares sao: {self.peers}')
             self.send_peers()
             # cria thread para conexao
             c_thread = threading.Thread(target=self.handler, args=(connection, a))
             c_thread.daemon = True
             c_thread.start()
             self.connections.append(connection)
-            print("{}, connected".format(a))
-            print("-" * 50)
+            print(f'{a}, conectado')
+            print("-" * 12)
 
 
 
@@ -116,9 +120,9 @@ class Server:
         envia uma lista de pares para todos os pares que estão conectados ao servidor
     """
     def send_peers(self):
-        peer_list = ""
+        peer_list = ''
         for peer in self.peers:
-            peer_list = peer_list + str(peer[0]) + ","
+            peer_list = peer_list + str(peer[0]) + ','
 
         for connection in self.connections:
             # adicionamos um byte '\ x11' no início do nosso byte 
@@ -134,7 +138,8 @@ class Server:
 class Client: 
 
     def __init__(self, addr):
-       # set up socket
+       # cria o socket e define se e UDP ou TCP
+       #lembrar de fechar o socket depois
        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
        # allow python to use recently closed socket
@@ -164,11 +169,11 @@ class Client:
 
            if not data:
                # means the server has failed
-               print("-" * 21 + " Server failed " + "-" * 21)
+               print("-" * 12 + " Servidor falhou " + "-" * 12)
                break
 
            elif data[0:1] == b'\x11':
-               print("Got peers")
+               print("possui pares")
                # first byte is the byte '\x11 we added to make sure that we have peers
                self.update_peers(data[1:])
 
@@ -180,12 +185,12 @@ class Client:
     """
     def recieve_message(self):
        try:
-           print("Recieving -------")
+           print("Recebendo -------")
            data = self.s.recv(BYTE_SIZE)
 
            print(data.decode("utf-8"))
 
-           print("\nRecieved message on the client side is:")
+           print('\nA mensagem recebida do lado do cliente foi: ')
 
            if self.previous_data != data:
                create_file(data, new_file_path)
@@ -250,13 +255,13 @@ def convert_to_bytes(file_path):
     read_data = None
     with open(file_path, 'r') as file:
         read_data = file.read()
-    return read_data.encode("utf-8")
+    return read_data.encode('utf-8')
 
 
 
 def create_file(data, new_file_path):
-    data = data.decode("utf-8")
-    print("Writing to file")
+    data = data.decode('utf-8')
+    print('Gravando em arquivo')
     with open(new_file_path, 'w') as file:
         file.write(data)
     return True
@@ -275,36 +280,36 @@ class p2p:
     peers = ['127.0.0.1']
 
 
-def main():
-    # if the server breks we try to make a client a new server
-    #msg = convert()
+# def main():
+#     # if the server breks we try to make a client a new server
+#     #msg = convert()
 
 
-    msg = convert_to_bytes()
-    while True:
-        try:
-            print("-" * 21 + "Tentando se conectar" + "-" * 21)
-            # sleep a random time between 1 -5 seconds
-            time.sleep(randint(RAND_TIME_START,RAND_TIME_END))
-            for peer in p2p.peers:
-                try:
-                    cliente = Client(peer)
-                except KeyboardInterrupt:
-                    sys.exit(0)
-                except:
-                    pass
+#     msg = convert_to_bytes()
+#     while True:
+#         try:
+#             print("-" * 21 + " Tentando se conectar " + "-" * 21)
+#             # sleep a random time between 1 -5 seconds
+#             time.sleep(randint(RAND_TIME_START,RAND_TIME_END))
+#             for peer in p2p.peers:
+#                 try:
+#                     cliente = Client(peer)
+#                 except KeyboardInterrupt:
+#                     sys.exit(0)
+#                 except:
+#                     pass
 
 
-                # become the server
-                try:
-                    server = Server(msg)
-                except KeyboardInterrupt:
-                    sys.exit()
-                except:
-                    pass
+#                 # become the server
+#                 try:
+#                     server = Server(msg)
+#                 except KeyboardInterrupt:
+#                     sys.exit()
+#                 except:
+#                     pass
 
-        except KeyboardInterrupt as e:
-            sys.exit(0)
+#         except KeyboardInterrupt as e:
+#             sys.exit(0)
 
 ########################################################################
 
@@ -328,6 +333,26 @@ def EscolheArquivo(list_arq):
     print(f'O arquivo escolhido foi {list_arq[indice]}')
     return list_arq[indice]
     
+# funcao para enviar o nome do arquivo selecionado para o servidor
+# param: cliente -> recebe instancia do cliente apos se conectar o servidor, ou seja, apos  ('cient.connect(HOST, PORT))
+def NomeArquivo(cliente, list_arq):
+    # salva a str com o nome do arquivo que o cliente deseja baixar
+    namefile = EscolheArquivo(list_arq)
+    # envia para servidor o nome do arquivo que o cliente deseja fazer dowload
+    cliente.send(namefile.encode())
+
+"""
+    Esta funcao retorna True caso timeout seja atingido
+    param: segundos -> tempo em segundos para gerar timeout
+"""
+def TimeOut(segundos):
+    start = timer()
+    while True:
+        if timer() - start >= segundos:
+            # start = timer()
+            return True
+
+
 ######################################################################################
 
 if __name__ == "__main__":
@@ -340,11 +365,12 @@ if __name__ == "__main__":
     msg = convert_to_bytes(path_to_file)
     while True:
         try:
-            print("-" * 21 + "Tentando se conectar" + "-" * 21)
+            print('-' * 12 + 'Tentando se conectar' + '-' *12)
             # sleep a random time between 1 -5 seconds
             time.sleep(randint(RAND_TIME_START,RAND_TIME_END))
             for peer in p2p.peers:
                 try:
+                    print('Cliente\n')
                     cliente = Client(peer)
                 except KeyboardInterrupt:
                     sys.exit(0)
@@ -354,6 +380,7 @@ if __name__ == "__main__":
 
                 # become the server
                 try:
+                    print('Servidor\n')
                     server = Server(msg)
                 except KeyboardInterrupt:
                     sys.exit()
