@@ -7,6 +7,8 @@ import time
 
 ip_jv = '192.168.100.8'
 
+connections = [] #lista de pares
+
 def sendMessage(connection):
     while True:
         mensagem = input()
@@ -15,12 +17,12 @@ def sendMessage(connection):
 class Servidor:
     port = 60000
     host = 'localhost'
-    connections = [] #lista de pares
-
+    
     def __init__(self):
         self.serverUDPsocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.serverUDPsocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # dica da prof
-        self.serverUDPsocket.bind(('', self.port)) 
+        self.serverUDPsocket.bind(('', self.port))
+        #self.serverUDPsocket.settimeout(3.0) 
 
     def run(self):
         print ('Aguardando conectar com outros pares...')
@@ -33,11 +35,16 @@ class Servidor:
             time.sleep(3)
 
     def run_udp(self):
+        print('Diz que entrou no run udp')
+
         while(True):
             mensagem, sourceAddress = self.serverUDPsocket.recvfrom(128)
             print("Mensagem de %s is %s"%(sourceAddress, mensagem.decode("utf-8")))
-            response = "Recebido"
+            connections.append(sourceAddress)
+            response = "Bem vindo a rede"
             self.serverUDPsocket.sendto(response.encode(), sourceAddress)
+
+
 
     def listar_arquivos(self):
         lista = os.listdir()
@@ -65,19 +72,37 @@ class Servidor:
 class Cliente:
     port = 60000
     host = '255.255.255.255'
-    
+    ClienteUDPsocket = socket.socket()
     def __init__(self):
-        self.ClienteUDPsocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM);
+        pass
 
     def broadcast(self):
+        self.ClienteUDPsocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.ClienteUDPsocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self.ClienteUDPsocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         while True:
-            self.ClienteUDPsocket.sendto('This is a test'.encode("utf-8"), (self.host, self.port))
-            #self.ClienteUDPsocket.sendto("mandei fodase".encode(), (self.host,self.port));
+            self.ClienteUDPsocket.sendto('Teste'.encode("utf-8"), (self.host, self.port))
+            #self.ClienteUDPsocket.sendto("mandei fodase".encode(), (self.host,self.port))
             response = self.ClienteUDPsocket.recv(1024)
             print(response)
             time.sleep(5)
+
+    def conectarRede(self):
+        self.ClienteUDPsocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.ClienteUDPsocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.ClienteUDPsocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.ClienteUDPsocket.sendto('Novo Node'.encode("utf-8"), (self.host, self.port))
+         
+        response = self.ClienteUDPsocket.recv(1024)
+        while True:
+            print(response.decode("utf-8"))
+            print(connections)
+            if not response:
+                break
+            response = self.ClienteUDPsocket.recv(1024)
+        
+
+
 
     def listar_usuarios():
         pass
@@ -103,19 +128,23 @@ class Cliente:
             time.sleep(2)
 
 
-def main_teste():
+def main():
 
     server = Servidor()
-    t_server = threading.Thread(target=server.run())
-    t_server.start()
-    print("teste")
+    start_new_thread(server.run_udp,())
+    print("t do server")
 
     cliente = Cliente()
-    t_cliente = threading.Thread(target=cliente.teste_t())
-    t_cliente.start()
+    
+    start_new_thread(cliente.conectarRede,())
+    print("t do cliente")
 
 
-def main():
+    while True:
+        pass
+
+
+def main_t():
     entrada = input()
 
     if entrada == 'server':
@@ -125,7 +154,7 @@ def main():
         
     elif entrada == 'cliente':
         cliente = Cliente()
-        t_cliente = threading.Thread(target=cliente.broadcast())
+        t_cliente = threading.Thread(target=cliente.conectarRede())
         t_cliente.start()
     else:
         pass    
