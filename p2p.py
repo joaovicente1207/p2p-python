@@ -7,8 +7,15 @@ import pickle
 
 ip_jv = '192.168.100.8'
 
+
+# guarda o diretorio onde o prog esta rodando
+dir = os.path.dirname(os.path.realpath(__file__))
+# abre diretorio
+os.chdir(dir)
 connections = [] 
+# salva muma lista os nomes dos arquivos no diretorio
 lista_arquivos = os.listdir()
+
 
 
 def enviar_lista_arquivos(connection):
@@ -59,8 +66,9 @@ class Servidor:
                         tcp.close()                       
                     except socket.timeout:
                         print('Troca interrompida')
+                        pass
                     except Exception as E:
-                        print(E)
+                        print(f'Exception do Win: {E}')
 
             elif 'pedir_lista' == mensagem_decode:
                 try:
@@ -89,7 +97,12 @@ class Servidor:
         return local_ip
 
 
-
+# funcao para mostrar a lista de arquivos recebida
+def imprimir_lista(lista):
+    cont = 0
+    for i in lista:
+        print(f'[{cont}]- {lista[i]}')
+        cont += 1
 
 def conexao_tcp_cliente(HOST='localhost',PORT=5000):
     tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -112,11 +125,13 @@ class Cliente:
 
 
     def pedir_lista(self,mensagem):
-        self.cliente_socket.sendto(mensagem.encode("utf-8"), (self.host, self.port))
+        self.cliente_socket.sendto(str(mensagem).encode("utf-8"), (self.host, self.port))
         try: 
             tcp = conexao_tcp_cliente()
             msg = tcp.recv(1024)
             lista_recebida=pickle.loads(msg)
+            # ordenar os nomes
+            lista_recebida = sorted(lista_recebida)
             print('Lista recebida do fulano:\n',lista_recebida)
             tcp.close()
         except socket.timeout:
@@ -127,7 +142,10 @@ class Cliente:
 
 
 def main():
-    comando = 'nenhum'
+    # para print em azul
+    CRED = '\33[36m'
+    CEND = '\33[0m'
+    comando = ''
 
     server = Servidor()
     start_new_thread(server.espera_conexoes,())
@@ -135,18 +153,22 @@ def main():
     cliente = Cliente()   
 
     while True:
-        comando = input()
+        comando = input(f'{CRED}p2p>{CEND} ')
         if comando == 'conexoes':
-            comando = 'nenhum'
+            comando = ''
             print(connections)
 
         if 'pedir_arquivo' in comando:
+            # server.espera_conexoes()
             cliente.pedir_arquivo(comando)
-            comando = 'nenhum'
+            comando = ''
 
         if comando == 'pedir_lista':
             cliente.pedir_lista(comando)
-            comando = 'nenhum'   
+            comando = ''
+
+        if comando == 'exit':
+            exit(0)
 
         else:
             pass
