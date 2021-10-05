@@ -49,7 +49,7 @@ class Servidor:
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # dica da prof
         self.server_socket.bind(('', self.port))
         # para criar um ID unico de modo aleatorio
-        self.id = str(uuid.uuid4()) 
+        self.id = hash(uuid.uuid4()) 
 
     def espera_conexoes(self):
         while(True):
@@ -151,7 +151,7 @@ class Cliente:
             msg_id = tcp2.recv(1024)
             id = msg_id.decode('utf-8')
             id = id.replace('ID: ','')
-            print(f'ID fulano: {msg_id}')
+            print(f'ID fulano: {id}')
             tcp2.close()
         except socket.timeout:
             print('Nao foi possivel receber o arquivo solicitado')
