@@ -5,6 +5,8 @@ from datetime import datetime
 import time
 import pickle
 import uuid
+import random
+from timeit import default_timer as timer
 
 ip_jv = '192.168.100.8'
 
@@ -16,7 +18,7 @@ os.chdir(dir)
 connections = [] 
 # salva muma lista os nomes dos arquivos no diretorio
 lista_arquivos = os.listdir()
-
+id = str(random.randint(1,1000))
 
 
 def enviar_lista_arquivos(connection):
@@ -49,7 +51,7 @@ class Servidor:
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # dica da prof
         self.server_socket.bind(('', self.port))
         # para criar um ID unico de modo aleatorio
-        self.id = hash(uuid.uuid4()) 
+         
 
     def espera_conexoes(self):
         while(True):
@@ -79,17 +81,29 @@ class Servidor:
                     enviar_lista_arquivos(con)
                     con.close()
                     tcp.close()   
-                    # time.sleep(0.5)
-                    print(f'Meu id Server: {self.id}')
+                    time.sleep(0.3)
+ 
                     # envia seu ID
                     con2,cliente,tcp2 = conexao_tcp_server()
-                    con2.send(str.encode(f'ID: {self.id}')) 
+                    con2.send(str.encode(f'ID: {str(id)}')) 
                     con2.close()
                     tcp2.close()                   
                 except socket.timeout:
                     print('Troca interrompida')
                 except Exception as E:
-                    print(E)
+                    print(f'Exception do Win: {E}')
+
+            elif 'pedir_IDs' == mensagem_decode:
+                try:
+                    con,cliente,tcp = conexao_tcp_server()
+                    con.send(str.encode(id))
+                    con.close()
+                    tcp.close()   
+                 
+                except socket.timeout:
+                    print('Troca interrompida')
+                except Exception as E:
+                    print(f'Exception do Win: {E}')
 
 
 
@@ -146,17 +160,40 @@ class Cliente:
             
             print('Lista recebida do fulano:\n',lista_recebida)
             tcp.close()
-
+            time.sleep(0.3)
             tcp2 = conexao_tcp_cliente()
             msg_id = tcp2.recv(1024)
-            id = msg_id.decode('utf-8')
-            id = id.replace('ID: ','')
-            print(f'ID fulano: {id}')
+            id_rcv = msg_id.decode('utf-8')
+            id_rcv = id_rcv.replace('ID: ','')
+            print(f'ID fulano: {id_rcv}')
             tcp2.close()
         except socket.timeout:
             print('Nao foi possivel receber o arquivo solicitado')
         except Exception as E:
-            print(E)
+            print(f'Exception do Win: {E}')
+
+    def pedir_usuarios(self):
+        self.cliente_socket.sendto(str('pedir_IDs').encode("utf-8"), (self.host, self.port))
+        try: 
+            # start = timer()
+            while True:
+                # if timer() - start >= 3.0:
+                #     break
+                tcp = conexao_tcp_cliente()
+                tcp.settimeout(3.0)
+                msg = tcp.recv(1024)
+                tcp.close()
+                msg_decode = msg.decode('utf-8')
+                print(msg_decode)
+                connections.append(msg_decode)
+
+        except socket.timeout:
+            print(f'lista de conexoes: {connections}')
+            pass
+        except Exception as E:
+            # print(f'Exception do Win: {E}')
+            pass
+
 
 
 
@@ -171,6 +208,8 @@ def main():
 
     cliente = Cliente()   
 
+    print(f'ID node: {id}')
+
     while True:
         comando = input(f'{CRED}p2p>{CEND} ')
         if comando == 'conexoes':
@@ -184,6 +223,10 @@ def main():
 
         if comando == 'pedir_lista':
             cliente.pedir_lista(comando)
+            comando = ''
+
+        if comando == 'usuarios':
+            cliente.pedir_usuarios()
             comando = ''
 
         if comando == 'exit':
