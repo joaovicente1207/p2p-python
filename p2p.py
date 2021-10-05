@@ -1,54 +1,82 @@
 import socket
-import threading
 from _thread import *
 import os
 from datetime import datetime
 import time
+import pickle
 
 ip_jv = '192.168.100.8'
 
-connections = [] #lista de pares
+connections = [] 
+lista_arquivos = os.listdir()
 
-def sendMessage(connection):
-    while True:
-        mensagem = input()
-        connection.send(str.encode(mensagem))
+
+def enviar_lista_arquivos(connection):
+    data=pickle.dumps(lista_arquivos)
+    connection.send(data)
+
+def enviar_imagem(connection,nome_imagem):
+    img = open(nome_imagem,'rb')
+    data=pickle.dumps(img)
+    connection.send(data)
+
+def conexao_tcp_server(HOST='',PORT=5000):
+    tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tcp.settimeout(3.0)
+    tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # dica da prof
+    orig = (HOST, PORT)
+    tcp.bind(orig)
+    tcp.listen(1)
+    con, cliente = tcp.accept()
+    print ('Conectado com:', cliente)
+    return con,cliente,tcp
+
 
 class Servidor:
     port = 60000
     host = 'localhost'
-    
+
     def __init__(self):
-        self.serverUDPsocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.serverUDPsocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # dica da prof
-        self.serverUDPsocket.bind(('', self.port))
-        #self.serverUDPsocket.settimeout(3.0) 
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # dica da prof
+        self.server_socket.bind(('', self.port))
 
-    def run(self):
-        print ('Aguardando conectar com outros pares...')
-        while True:
-            connection, endereco_cliente = self.sock.accept() # Aceita par
-            self.connections.append(connection)
-            print('Conectado ao par:',str(endereco_cliente))
-            start_new_thread(sendMessage,(connection,))
-            print("rodando")
-            time.sleep(3)
-
-    def run_udp(self):
-        print('Diz que entrou no run udp')
-
+    def espera_conexoes(self):
         while(True):
-            mensagem, sourceAddress = self.serverUDPsocket.recvfrom(128)
-            print("Mensagem de %s is %s"%(sourceAddress, mensagem.decode("utf-8")))
-            connections.append(sourceAddress)
-            response = "Bem vindo a rede"
-            self.serverUDPsocket.sendto(response.encode(), sourceAddress)
+            mensagem, sourceAddress = self.server_socket.recvfrom(128)
+            print("conectado com %s, mensagem: %s"%(sourceAddress, mensagem.decode("utf-8")))
+            mensagem_decode = mensagem.decode("utf-8")
+
+            # verifica o conteúdo das mensagens
+            if 'pedir_arquivo' in mensagem_decode:
+                nome_arquivo = mensagem_decode.replace('pedir_arquivo:','') # pega só o nome do arquivo
+                print(nome_arquivo)
+                if nome_arquivo in lista_arquivos:
+                    try:
+                        con,cliente,tcp = conexao_tcp_server()
+                        enviar_imagem(con,nome_arquivo)
+                        con.close()
+                        tcp.close()                       
+                    except socket.timeout:
+                        print('Troca interrompida')
+                    except Exception as E:
+                        print(E)
+
+            elif 'pedir_lista' == mensagem_decode:
+                try:
+                    con,cliente,tcp = conexao_tcp_server()
+                    enviar_lista_arquivos(con)
+                    con.close()
+                    tcp.close()                       
+                except socket.timeout:
+                    print('Troca interrompida')
+                except Exception as E:
+                    print(E)
 
 
 
     def listar_arquivos(self):
-        lista = os.listdir()
-        return lista
+        return lista_arquivos
 
     def escreve_log(palavra, filename):
         f = open(filename, "a")
@@ -60,108 +88,70 @@ class Servidor:
         local_ip = socket.gethostbyname(hostname)
         return local_ip
 
-    def ter_arquivo(filename):
-        if filename in os.listdir():
-            return True
-        else:
-            return False
 
-    def envia_arquivo(filename):
-        pass
+
+
+def conexao_tcp_cliente(HOST='localhost',PORT=5000):
+    tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tcp.settimeout(3.0)
+    tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    dest = (HOST, PORT)
+    tcp.connect(dest)
+    print('conect feita')
+    return tcp
+
 
 class Cliente:
     port = 60000
-    host = '255.255.255.255'
-    ClienteUDPsocket = socket.socket()
+    host = '255.255.255.255' # para mandar broadcast
+    cliente_socket = socket.socket()
     def __init__(self):
-        pass
-
-    def broadcast(self):
-        self.ClienteUDPsocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.ClienteUDPsocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        self.ClienteUDPsocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        while True:
-            self.ClienteUDPsocket.sendto('Teste'.encode("utf-8"), (self.host, self.port))
-            #self.ClienteUDPsocket.sendto("mandei fodase".encode(), (self.host,self.port))
-            response = self.ClienteUDPsocket.recv(1024)
-            print(response)
-            time.sleep(5)
-
-    def conectarRede(self):
-        self.ClienteUDPsocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.ClienteUDPsocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        self.ClienteUDPsocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.ClienteUDPsocket.sendto('Novo Node'.encode("utf-8"), (self.host, self.port))
-         
-        response = self.ClienteUDPsocket.recv(1024)
-        while True:
-            print(response.decode("utf-8"))
-            print(connections)
-            if not response:
-                break
-            response = self.ClienteUDPsocket.recv(1024)
-        
+        self.cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.cliente_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.cliente_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 
+    def pedir_lista(self,mensagem):
+        self.cliente_socket.sendto(mensagem.encode("utf-8"), (self.host, self.port))
+        try: 
+            tcp = conexao_tcp_cliente()
+            msg = tcp.recv(1024)
+            lista_recebida=pickle.loads(msg)
+            print('Lista recebida do fulano:\n',lista_recebida)
+            tcp.close()
+        except socket.timeout:
+            print('Nao foi possivel receber o arquivo solicitado')
+        except Exception as E:
+            print(E)
 
-    def listar_usuarios():
-        pass
-
-    def listar_arquivos():
-        pass
-
-    def procurar_arquivo():
-        pass
-
-    def baixar_arquivo():
-        pass
-    
-    def pedir_arquivo(self,nome_arquivo):
-        while True:
-            resposta = self.sock.recv(1024)
-            print(resposta.decode("utf-8"))
-
-    def teste_t(self):
-        while True:
-            resposta = self.sock.recv(1024)
-            print(resposta.decode("utf-8"))
-            time.sleep(2)
 
 
 def main():
+    comando = 'nenhum'
 
     server = Servidor()
-    start_new_thread(server.run_udp,())
-    print("t do server")
+    start_new_thread(server.espera_conexoes,())
 
-    cliente = Cliente()
-    
-    start_new_thread(cliente.conectarRede,())
-    print("t do cliente")
-
+    cliente = Cliente()   
 
     while True:
-        pass
+        comando = input()
+        if comando == 'conexoes':
+            comando = 'nenhum'
+            print(connections)
 
+        if 'pedir_arquivo' in comando:
+            cliente.pedir_arquivo(comando)
+            comando = 'nenhum'
 
-def main_t():
-    entrada = input()
+        if comando == 'pedir_lista':
+            cliente.pedir_lista(comando)
+            comando = 'nenhum'   
 
-    if entrada == 'server':
-        server = Servidor()
-        t_server = threading.Thread(target=server.run_udp())
-        t_server.start()
-        
-    elif entrada == 'cliente':
-        cliente = Cliente()
-        t_cliente = threading.Thread(target=cliente.conectarRede())
-        t_cliente.start()
-    else:
-        pass    
+        else:
+            pass
+
+ 
         
 if __name__ == '__main__':
    main()
-
-
-
-        
