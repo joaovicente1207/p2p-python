@@ -41,6 +41,10 @@ def conexao_tcp_server(HOST='',PORT=5000):
     print ('Conectado com:', cliente)
     return con,cliente,tcp
 
+def escreve_log(palavra, filename):
+        f = open(filename, "a")
+        f.write("{0} -- {1}\n".format(datetime.now().strftime("%d-%m-%Y %H:%M"), palavra))
+        f.close()
 
 class Servidor:
     port = 60000
@@ -59,14 +63,14 @@ class Servidor:
             print("conectado com %s, mensagem: %s"%(sourceAddress, mensagem.decode("utf-8")))
             mensagem_decode = mensagem.decode("utf-8")
 
-            # verifica o conteúdo das mensagens
-            if 'pedir_arquivo' in mensagem_decode:
-                nome_arquivo = mensagem_decode.replace('pedir_arquivo:','') # pega só o nome do arquivo
+
+            if 'procurar_arquivo' in mensagem_decode:
+                nome_arquivo = mensagem_decode.replace('procurar_arquivo:','') # pega só o nome do arquivo
                 print(nome_arquivo)
                 if nome_arquivo in lista_arquivos:
                     try:
                         con,cliente,tcp = conexao_tcp_server()
-                        enviar_imagem(con,nome_arquivo)
+                        con.send(str.encode(id))
                         con.close()
                         tcp.close()                       
                     except socket.timeout:
@@ -75,7 +79,7 @@ class Servidor:
                     except Exception as E:
                         print(f'Exception do Win: {E}')
 
-            elif 'pedir_lista' == mensagem_decode:
+            elif 'pedir_listas' == mensagem_decode:
                 try:
                     con,cliente,tcp = conexao_tcp_server()
                     enviar_lista_arquivos(con)
@@ -105,15 +109,6 @@ class Servidor:
                 except Exception as E:
                     print(f'Exception do Win: {E}')
 
-
-
-    def listar_arquivos(self):
-        return lista_arquivos
-
-    def escreve_log(palavra, filename):
-        f = open(filename, "a")
-        f.write("{0} -- {1}\n".format(datetime.now().strftime("%d-%m-%Y %H:%M"), palavra))
-        f.close()
 
     def local_ip():
         hostname = socket.gethostname()
@@ -147,8 +142,31 @@ class Cliente:
         self.cliente_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self.cliente_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
+    def pedir_usuarios(self):
+        self.cliente_socket.sendto(str('pedir_IDs').encode("utf-8"), (self.host, self.port))
+        try: 
+            while True:
+                try:
+                    tcp = conexao_tcp_cliente()
+                    tcp.settimeout(1.0)
+                    msg = tcp.recv(1024)
+                    tcp.close()
+                    msg_decode = msg.decode('utf-8')
+                    # para nao salvar IDs repetidos
+                    if not msg_decode in connections:
+                        connections.append(msg_decode)
 
-    def pedir_lista(self,mensagem):
+                except socket.timeout:
+                    break
+
+        except socket.timeout:
+            pass
+        except Exception as E:
+            # print(f'Exception do Win: {E}')
+            pass
+
+    def pedir_listas(self,mensagem,lista_ids=connections):
+        # Solicita via BROADCAST a lista arquivos de cada usuário na rede
         self.cliente_socket.sendto(str(mensagem).encode("utf-8"), (self.host, self.port))
         try: 
             tcp = conexao_tcp_cliente()
@@ -172,30 +190,40 @@ class Cliente:
         except Exception as E:
             print(f'Exception do Win: {E}')
 
-    def pedir_usuarios(self):
-        self.cliente_socket.sendto(str('pedir_IDs').encode("utf-8"), (self.host, self.port))
-        try: 
-            # start = timer()
-            while True:
-                # if timer() - start >= 3.0:
-                #     break
+
+
+    def procurar_arquivo(self,comando):
+        # Enviar broadcast com o nome de um arquivo, retornar os IDs de quem possui
+        nodes_com_arq = []
+        self.cliente_socket.sendto(str(comando).encode("utf-8"), (self.host, self.port))
+
+        while True:
+            try:
                 tcp = conexao_tcp_cliente()
-                tcp.settimeout(3.0)
+                tcp.settimeout(1.0)
                 msg = tcp.recv(1024)
                 tcp.close()
                 msg_decode = msg.decode('utf-8')
-                print(msg_decode)
-                connections.append(msg_decode)
+                nodes_com_arq.append(msg_decode)
 
-        except socket.timeout:
-            print(f'lista de conexoes: {connections}')
-            pass
-        except Exception as E:
-            # print(f'Exception do Win: {E}')
-            pass
+            except:
+                break
+        
+        print(f'Nodes com o arquivo solicitado:{nodes_com_arq}')
 
 
+    def baixar_arquivo(self,comando):
+        #Criar uma conexão TCP com um node através do seu ID e baixar o arquivo requisitado
+        pass
 
+def print_menu():
+    print('-*-*-*-*-*-*-*-*-* COMANDOS *-*-*-*-*-*-*-*-*-')
+    print('Lista de pares conectados: conexoes')
+    print('Procurar arquivo:          procurar_arquivo:nome.formato')
+    print('Baixar arquivo:            baixar_arquivo:nome.formato-ID')
+    print('Pedir listas de arquivos:  pedir_listas')
+    print('Listar nodes da rede:      usuarios')
+    print('Fechar programa:           exit')
 
 def main():
     # para print em azul
@@ -208,30 +236,44 @@ def main():
 
     cliente = Cliente()   
 
-    print(f'ID node: {id}')
+    print(f'ID node: {id}\n')
+    print(f'Meus arquivos: {lista_arquivos}\n')
+    #print_menu()
 
     while True:
         comando = input(f'{CRED}p2p>{CEND} ')
+
         if comando == 'conexoes':
             comando = ''
-            print(connections)
+            print(f'Lista de Nodes na rede: {connections}')
 
-        if 'pedir_arquivo' in comando:
-            # server.espera_conexoes()
-            cliente.pedir_arquivo(comando)
+        # ex: procurar_arquivo:vasco.jpg
+        if 'procurar_arquivo' in comando:
+            nome_arquivo_proc = comando.replace('procurar_arquivo:','')
+            if nome_arquivo_proc in lista_arquivos:
+                print(f'Você já possui o arquivo {nome_arquivo_proc}')
+            cliente.procurar_arquivo(comando)
+            comando = ''
+        
+        # ex: baixar_arquivo:vasco.jpg-ID
+        if 'baixar_arquivo' in comando:
+            cliente.baixar_arquivo(comando)
             comando = ''
 
-        if comando == 'pedir_lista':
-            cliente.pedir_lista(comando)
+        if comando == 'pedir_listas':
+            cliente.pedir_listas(comando)
             comando = ''
 
         if comando == 'usuarios':
             cliente.pedir_usuarios()
+            print(f'Lista de Nodes na rede: {connections}')
             comando = ''
 
         if comando == 'exit':
             exit(0)
 
+        if comando == 'clear':
+            print("\x1b[2J\x1b[1;1H")
         else:
             pass
 
