@@ -7,6 +7,7 @@ import pickle
 import uuid
 import random
 from timeit import default_timer as timer
+import sys
 
 ip_jv = '192.168.100.8'
 
@@ -290,7 +291,7 @@ def main():
             comando = ''
 
         if comando == 'exit':
-            exit(0)
+            sys.exit()
 
         if comando == 'clear':
             print("\x1b[2J\x1b[1;1H")
