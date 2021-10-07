@@ -38,7 +38,7 @@ def conexao_tcp_server(HOST='',PORT=5000):
     tcp.bind(orig)
     tcp.listen(1)
     con, cliente = tcp.accept()
-    print ('Conectado com:', cliente)
+    # print ('Conectado com:', cliente)
     return con,cliente,tcp
 
 def escreve_log(palavra, filename):
@@ -79,23 +79,27 @@ class Servidor:
                     except Exception as E:
                         print(f'Exception do Win: {E}')
 
-            elif 'lista arquivos' == mensagem_decode:
-                try:
-                    con,cliente,tcp = conexao_tcp_server()
-                    enviar_lista_arquivos(con)
-                    con.close()
-                    tcp.close()   
-                    time.sleep(0.3)
- 
-                    # envia seu ID
-                    con2,cliente,tcp2 = conexao_tcp_server()
-                    con2.send(str.encode(f'ID: {str(id)}')) 
-                    con2.close()
-                    tcp2.close()                   
-                except socket.timeout:
-                    print('Troca interrompida')
-                except Exception as E:
-                    print(f'Exception do Win: {E}')
+            elif 'lista arquivos' in mensagem_decode:
+                # pegar o ID e verificar se e ID solicitado
+                num_id = mensagem_decode.replace('lista arquivosID:','') # pega só ID
+                # print(f'pedido para ID: {type(num_id)}')
+                if num_id == id:
+                    try:
+                        con,cliente,tcp = conexao_tcp_server()
+                        enviar_lista_arquivos(con)
+                        con.close()
+                        tcp.close()   
+                        time.sleep(0.3)
+    
+                        # envia seu ID
+                        con2,cliente,tcp2 = conexao_tcp_server()
+                        con2.send(str.encode(f'ID: {str(id)}')) 
+                        con2.close()
+                        tcp2.close()                   
+                    except socket.timeout:
+                        print('Troca interrompida')
+                    except Exception as E:
+                        print(f'Exception do Win: {E}')
 
             elif 'pedir_IDs' == mensagem_decode:
                 try:
@@ -129,7 +133,7 @@ def conexao_tcp_cliente(HOST='localhost',PORT=5000):
     tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     dest = (HOST, PORT)
     tcp.connect(dest)
-    print('conect feita')
+    # print('conect feita')
     return tcp
 
 
@@ -167,10 +171,15 @@ class Cliente:
 
     def pedir_listas_arquivos(self,mensagem,lista_ids=connections):
         # Solicita via BROADCAST a lista arquivos de cada usuário na rede
-        self.cliente_socket.sendto(str(mensagem).encode("utf-8"), (self.host, self.port))
+        # self.cliente_socket.sendto(str(mensagem).encode("utf-8"), (self.host, self.port))
+
+        # para atualizar a lista de usuarios
+        self.pedir_usuarios()
         try: 
-            while True:
+            for id in connections:
                 try:
+                    # pedido de arquivo com o ID de um servidor
+                    self.cliente_socket.sendto(str(mensagem + f'ID:{id}').encode("utf-8"), (self.host, self.port))
                     tcp = conexao_tcp_cliente()
                     tcp.settimeout(1.0)
                     msg = tcp.recv(1024)
@@ -185,7 +194,7 @@ class Cliente:
                     msg_id = tcp2.recv(1024)
                     id_rcv = msg_id.decode('utf-8')
                     id_rcv = id_rcv.replace('ID: ','')
-                    print(f'Lista: {lista_recebida} recebida do servidor ID: {id_rcv}\n')
+                    print(f'Lista: {lista_recebida} recebida do prog de ID: {id_rcv}\n')
                     tcp2.close()
                 except socket.timeout:
                     break
@@ -222,13 +231,16 @@ class Cliente:
         pass
 
 def print_menu():
-    print('-*-*-*-*-*-*-*-*-* COMANDOS *-*-*-*-*-*-*-*-*-')
+    CBLUE = '\33[104m'
+    CEND = '\33[0m'
+    print('-*'* 10 + f' {CBLUE}COMANDOS{CEND} '+ '-*'* 10)
     print('Lista de pares conectados: conexoes')
     print('Procurar arquivo:          procurar_arquivo:nome.formato')
     print('Baixar arquivo:            baixar_arquivo:nome.formato-ID')
     print('Pedir listas de arquivos:  lista arquivos')
     print('Listar nodes da rede:      usuarios')
     print('Fechar programa:           exit')
+    print('limpar terminal:           clear')
 
 def main():
     # para print em azul
@@ -247,6 +259,9 @@ def main():
 
     while True:
         comando = input(f'{CRED}p2p>{CEND} ')
+
+        if 'comandos' in comando:
+            print_menu()
 
         if comando == 'conexoes':
             comando = ''
