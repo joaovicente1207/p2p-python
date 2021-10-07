@@ -79,7 +79,7 @@ class Servidor:
                     except Exception as E:
                         print(f'Exception do Win: {E}')
 
-            elif 'pedir_listas' == mensagem_decode:
+            elif 'lista arquivos' == mensagem_decode:
                 try:
                     con,cliente,tcp = conexao_tcp_server()
                     enviar_lista_arquivos(con)
@@ -165,30 +165,35 @@ class Cliente:
             # print(f'Exception do Win: {E}')
             pass
 
-    def pedir_listas(self,mensagem,lista_ids=connections):
+    def pedir_listas_arquivos(self,mensagem,lista_ids=connections):
         # Solicita via BROADCAST a lista arquivos de cada usuário na rede
         self.cliente_socket.sendto(str(mensagem).encode("utf-8"), (self.host, self.port))
         try: 
-            tcp = conexao_tcp_cliente()
-            msg = tcp.recv(1024)
-            lista_recebida=pickle.loads(msg)
-            # ordenar os nomes
-            lista_recebida = sorted(lista_recebida)
-            # time.sleep(0.5)
-            
-            print('Lista recebida do fulano:\n',lista_recebida)
-            tcp.close()
-            time.sleep(0.3)
-            tcp2 = conexao_tcp_cliente()
-            msg_id = tcp2.recv(1024)
-            id_rcv = msg_id.decode('utf-8')
-            id_rcv = id_rcv.replace('ID: ','')
-            print(f'ID fulano: {id_rcv}')
-            tcp2.close()
+            while True:
+                try:
+                    tcp = conexao_tcp_cliente()
+                    tcp.settimeout(1.0)
+                    msg = tcp.recv(1024)
+                    lista_recebida=pickle.loads(msg)
+                    # ordenar os nomes
+                    lista_recebida = sorted(lista_recebida)
+                    # time.sleep(0.5)
+                    
+                    tcp.close()
+                    time.sleep(0.3)
+                    tcp2 = conexao_tcp_cliente()
+                    msg_id = tcp2.recv(1024)
+                    id_rcv = msg_id.decode('utf-8')
+                    id_rcv = id_rcv.replace('ID: ','')
+                    print(f'Lista: {lista_recebida} recebida do servidor ID: {id_rcv}\n')
+                    tcp2.close()
+                except socket.timeout:
+                    break
         except socket.timeout:
             print('Nao foi possivel receber o arquivo solicitado')
         except Exception as E:
-            print(f'Exception do Win: {E}')
+            # print(f'Exception do Win (pedir_listas_arquivos): {E}')
+            pass
 
 
 
@@ -221,7 +226,7 @@ def print_menu():
     print('Lista de pares conectados: conexoes')
     print('Procurar arquivo:          procurar_arquivo:nome.formato')
     print('Baixar arquivo:            baixar_arquivo:nome.formato-ID')
-    print('Pedir listas de arquivos:  pedir_listas')
+    print('Pedir listas de arquivos:  lista arquivos')
     print('Listar nodes da rede:      usuarios')
     print('Fechar programa:           exit')
 
@@ -259,9 +264,9 @@ def main():
         if 'baixar_arquivo' in comando:
             cliente.baixar_arquivo(comando)
             comando = ''
-
-        if comando == 'pedir_listas':
-            cliente.pedir_listas(comando)
+        # para pedir lista de arquivos de todos os servidores ativos
+        if comando == 'lista arquivos':
+            cliente.pedir_listas_arquivos(comando)
             comando = ''
 
         if comando == 'usuarios':
