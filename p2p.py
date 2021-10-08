@@ -7,23 +7,28 @@ import pickle
 import uuid
 import random
 from timeit import default_timer as timer
-import sys
 
 ip_jv = '192.168.100.8'
-
-
-# guarda o diretorio onde o prog esta rodando
-dir = os.path.dirname(os.path.realpath(__file__))
-# abre diretorio
-os.chdir(dir)
-connections = [] 
-# salva muma lista os nomes dos arquivos no diretorio
-lista_arquivos = os.listdir()
+connections = []
 id = str(random.randint(1,1000))
 
+def meus_arquivos():
+    # guarda o diretorio onde o prog esta rodando
+    dir = os.path.dirname(os.path.realpath(__file__))
+    # abre diretorio
+    os.chdir(dir)
+     
+    # salva muma lista os nomes dos arquivos no diretorio
+    return os.listdir()
+
+# funcao para enviar arquivo
+def enviar_arquivo(connection,nome):
+    file = open(nome,'rb')
+    data=pickle.dumps(file)
+    connection.send(data)
 
 def enviar_lista_arquivos(connection):
-    data=pickle.dumps(lista_arquivos)
+    data=pickle.dumps(meus_arquivos())
     connection.send(data)
 
 def enviar_imagem(connection,nome_imagem):
@@ -65,9 +70,10 @@ class Servidor:
             mensagem_decode = mensagem.decode("utf-8")
 
 
-            if 'procurar_arquivo' in mensagem_decode:
-                nome_arquivo = mensagem_decode.replace('procurar_arquivo:','') # pega só o nome do arquivo
+            if 'procurar arquivo' in mensagem_decode:
+                nome_arquivo = mensagem_decode.replace('procurar arquivo:','') # pega só o nome do arquivo
                 print(nome_arquivo)
+                lista_arquivos = meus_arquivos()
                 if nome_arquivo in lista_arquivos:
                     try:
                         con,cliente,tcp = conexao_tcp_server()
@@ -113,6 +119,25 @@ class Servidor:
                     print('Troca interrompida')
                 except Exception as E:
                     print(f'Exception do Win: {E}')
+
+            elif 'baixar arquivo' in mensagem_decode:
+                mensagem_decode = mensagem_decode.replace('baixar arquivo:','') # pega só nome do arquivo e ID
+                num_id = mensagem_decode[mensagem_decode.find('-')+1:]
+                nome_arquivo = mensagem_decode[:mensagem_decode.find('-')]
+
+                if num_id == id:
+                    con,cliente,tcp = conexao_tcp_server()
+
+                    file = open(nome_arquivo,'rb')
+                    con.sendfile(file, offset=0, count=None)
+                    print(f'Enviados {file.tell()} Bytes')
+                    con.close()
+                    tcp.close() 
+                    file.close()
+
+                    print('Envio de arquivo concluído\n')
+
+
 
 
     def local_ip():
@@ -226,18 +251,41 @@ class Cliente:
         
         print(f'Nodes com o arquivo solicitado:{nodes_com_arq}')
 
+    # funcao que solicita um arquivo para o servidor
+    def solicita_arquivo(self,comando):
+        cmd = comando
+        print(f'cmd: {cmd}')
+        cmd = cmd.replace('baixar arquivo:','')
+        # pega o nome do arquivo
+        nome_arquivo = cmd[:cmd.find('-')]
 
-    def baixar_arquivo(self,comando):
         #Criar uma conexão TCP com um node através do seu ID e baixar o arquivo requisitado
-        pass
+        self.cliente_socket.sendto(str(comando).encode("utf-8"), (self.host, self.port))
+        tcp = conexao_tcp_cliente()
+        tcp.settimeout(3.0)
+        
+        with open(str(nome_arquivo), 'wb') as f:
+        # print('Arquivo aberto')
+            while True:
+                try:
+                    data = tcp.recv(1024) 
+                    if not data:
+                        break                 
+                    f.write(data)   
+                except socket.timeout:
+                    print('timeout (solicita_arquivo')
+                    break
+        tcp.close()
+        f.close()
+        print(f'Download do arquivo {nome_arquivo} com sucesso')
 
 def print_menu():
     CBLUE = '\33[104m'
     CEND = '\33[0m'
     print('-*'* 10 + f' {CBLUE}COMANDOS{CEND} '+ '-*'* 10)
     print('Lista de pares conectados: conexoes')
-    print('Procurar arquivo:          procurar_arquivo:nome.formato')
-    print('Baixar arquivo:            baixar_arquivo:nome.formato-ID')
+    print('Procurar arquivo:          procurar arquivo:nome.formato')
+    print('Baixar arquivo:            baixar arquivo:nome.formato-ID')
     print('Pedir listas de arquivos:  lista arquivos')
     print('Listar nodes da rede:      usuarios')
     print('Fechar programa:           exit')
@@ -248,6 +296,7 @@ def main():
     CRED = '\33[36m'
     CEND = '\33[0m'
     comando = ''
+    lista_arquivos = meus_arquivos()
 
     server = Servidor()
     start_new_thread(server.espera_conexoes,())
@@ -261,24 +310,33 @@ def main():
     while True:
         comando = input(f'{CRED}p2p>{CEND} ')
 
+        if 'meus arquivos' in comando:
+            # salva muma lista os nomes dos arquivos no diretorio
+            lista_arquivos = meus_arquivos()
+            print(f'Meus arquivos: {lista_arquivos}\n')
+            comando = ''
+
         if 'comandos' in comando:
             print_menu()
+            comando = ''
 
         if comando == 'conexoes':
             comando = ''
-            print(f'Lista de Nodes na rede: {connections}')
+            print(f'Lista de Nodes na rede: {connections}\n')
 
         # ex: procurar_arquivo:vasco.jpg
-        if 'procurar_arquivo' in comando:
-            nome_arquivo_proc = comando.replace('procurar_arquivo:','')
+        if 'procurar arquivo' in comando:
+            nome_arquivo_proc = comando.replace('procurar arquivo:','')
+            lista_arquivos = meus_arquivos()
             if nome_arquivo_proc in lista_arquivos:
-                print(f'Você já possui o arquivo {nome_arquivo_proc}')
-            cliente.procurar_arquivo(comando)
+                print(f'Você já possui o arquivo {nome_arquivo_proc}\n')
+            else:
+                cliente.procurar_arquivo(comando)
             comando = ''
         
         # ex: baixar_arquivo:vasco.jpg-ID
-        if 'baixar_arquivo' in comando:
-            cliente.baixar_arquivo(comando)
+        if 'baixar arquivo' in comando:
+            cliente.solicita_arquivo(comando)
             comando = ''
         # para pedir lista de arquivos de todos os servidores ativos
         if comando == 'lista arquivos':
@@ -287,16 +345,18 @@ def main():
 
         if comando == 'usuarios':
             cliente.pedir_usuarios()
-            print(f'Lista de Nodes na rede: {connections}')
+            print(f'Lista de Nodes na rede: {connections}\n')
             comando = ''
 
         if comando == 'exit':
-            sys.exit()
+            exit(0)
 
         if comando == 'clear':
+            comando = ''
             print("\x1b[2J\x1b[1;1H")
         else:
             pass
+        time.sleep(1)
 
  
         
