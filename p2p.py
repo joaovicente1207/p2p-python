@@ -207,6 +207,9 @@ class Cliente:
     def pedir_listas_arquivos(self,mensagem,lista_ids=connections):
         # Solicita via BROADCAST a lista arquivos de cada usuário na rede
         # self.cliente_socket.sendto(str(mensagem).encode("utf-8"), (self.host, self.port))
+        # comando de cores
+        CYELLOW = '\33[93m'
+        CEND = '\33[0m'
 
         # para atualizar a lista de usuarios
         self.pedir_usuarios()
@@ -229,7 +232,7 @@ class Cliente:
                     msg_id = tcp2.recv(1024)
                     id_rcv = msg_id.decode('utf-8')
                     id_rcv = id_rcv.replace('ID: ','')
-                    print(f'Lista: {lista_recebida} recebida do Node de ID: {id_rcv}\n')
+                    print(f'{CYELLOW}Lista recebida do Node ID{CEND} {id_rcv}: {lista_recebida}\n')
                     tcp2.close()
                 except socket.timeout:
                     break
@@ -260,7 +263,7 @@ class Cliente:
             except:
                 break
         
-        print(f'{CYELLOW}Nodes com o arquivo solicitado{CEND}:{nodes_com_arq}')
+        print(f'{CYELLOW}Nodes com o arquivo solicitado{CEND}: {nodes_com_arq}\n')
 
     # funcao que solicita um arquivo para o servidor
     def solicita_arquivo(self,comando):
@@ -290,7 +293,7 @@ class Cliente:
                     break
         tcp.close()
         f.close()
-        print(f'{CGREEN}Download do arquivo {nome_arquivo} com sucesso{CEND}')
+        print(f'{CGREEN}Download do arquivo {nome_arquivo} com sucesso{CEND}!\n')
 
 def print_menu():
     CBLUE_FUNDO = '\33[104m'
@@ -302,7 +305,7 @@ def print_menu():
     print('Pedir listas de arquivos:  lista arquivos')
     print('Listar nodes da rede:      usuarios')
     print('Fechar programa:           exit')
-    print('limpar terminal:           clear')
+    print('limpar terminal:           clear\n')
 
 def main():
     # para limpar o terminal assim que iniciar o programa
