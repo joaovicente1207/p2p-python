@@ -4,11 +4,9 @@ import os
 from datetime import datetime
 import time
 import pickle
-import uuid
 import random
 from timeit import default_timer as timer
 
-ip_jv = '192.168.100.8'
 connections = []
 id = str(random.randint(1,1000))
 
@@ -52,7 +50,7 @@ def conexao_tcp_server(HOST='',PORT=5000):
     # print ('Conectado com:', cliente)
     return con,cliente,tcp
 
-def escreve_log(palavra, filename):
+def escreve_log(palavra, filename='log.txt'):
         f = open(filename, "a")
         f.write("{0} -- {1}\n".format(datetime.now().strftime("%d-%m-%Y %H:%M"), palavra))
         f.close()
@@ -73,9 +71,10 @@ class Servidor:
             mensagem, sourceAddress = self.server_socket.recvfrom(128)
             print("conectado com %s, mensagem: %s"%(sourceAddress, mensagem.decode("utf-8")))
             mensagem_decode = mensagem.decode("utf-8")
+            id_c = mensagem_decode[0:mensagem_decode.find('-')]
+            mensagem_decode = mensagem_decode[mensagem_decode.find('-')+1:]
 
-
-            if 'procurar arquivo' in mensagem_decode:
+            if 'procurar arquivo' in mensagem_decode: 
                 nome_arquivo = mensagem_decode.replace('procurar arquivo:','') # pega só o nome do arquivo
 
                 lista_arquivos = meus_arquivos()
@@ -88,7 +87,8 @@ class Servidor:
                         con,cliente,tcp = conexao_tcp_server()
                         con.send(str.encode('ID: '+ id + tamanho_file))
                         con.close()
-                        tcp.close()                       
+                        tcp.close()
+                        escreve_log('Pesquisa de arquivo, node:'+id_c)                       
                     except socket.timeout:
                         print('Troca interrompida')
                         pass
@@ -111,18 +111,20 @@ class Servidor:
                         con2,cliente,tcp2 = conexao_tcp_server()
                         con2.send(str.encode(f'ID: {str(id)}')) 
                         con2.close()
-                        tcp2.close()                   
+                        tcp2.close()
+                        escreve_log('Listagem de arquivos, node:'+id_c)                   
                     except socket.timeout:
                         print('Troca interrompida')
                     except Exception as E:
                         print(f'Exception do Win (espera_conexoes): {E}')
 
-            elif 'pedir_IDs' == mensagem_decode:
+            elif 'pedir_IDs' in mensagem_decode:
                 try:
                     con,cliente,tcp = conexao_tcp_server()
                     con.send(str.encode(id))
                     con.close()
-                    tcp.close()   
+                    tcp.close()
+                    escreve_log('Pedido de ID, node:'+id_c)    
                  
                 except socket.timeout:
                     print('Troca interrompida')
@@ -138,16 +140,17 @@ class Servidor:
                     con,cliente,tcp = conexao_tcp_server()
 
                     file = open(nome_arquivo,'rb')
+                    inicio = time.time()
                     con.sendfile(file, offset=0, count=None)
                     print(f'Enviados {file.tell()} Bytes')
                     con.close()
                     tcp.close() 
                     file.close()
+                    fim = time.time()
+                    tempo_total = str(fim-inicio)
+                    escreve_log('Envio do arquivo '+nome_arquivo+', tempo total: '+tempo_total+', Node:'+id_c)
 
                     print('Envio de arquivo concluído\n')
-
-
-
 
     def local_ip():
         hostname = socket.gethostname()
@@ -182,7 +185,7 @@ class Cliente:
         self.cliente_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     def pedir_usuarios(self):
-        self.cliente_socket.sendto(str('pedir_IDs').encode("utf-8"), (self.host, self.port))
+        self.cliente_socket.sendto(str(id+'-pedir_IDs').encode("utf-8"), (self.host, self.port))
         try: 
             while True:
                 try:
@@ -204,7 +207,7 @@ class Cliente:
             # print(f'Exception do Win (pedir_usuarios): {E}')
             pass
 
-    def pedir_listas_arquivos(self,mensagem,lista_ids=connections):
+    def pedir_listas_arquivos(self,mensagem):
         # Solicita via BROADCAST a lista arquivos de cada usuário na rede
         # self.cliente_socket.sendto(str(mensagem).encode("utf-8"), (self.host, self.port))
         # comando de cores
@@ -217,7 +220,7 @@ class Cliente:
             for id in connections:
                 try:
                     # pedido de arquivo com o ID de um servidor
-                    self.cliente_socket.sendto(str(mensagem + f'ID:{id}').encode("utf-8"), (self.host, self.port))
+                    self.cliente_socket.sendto(str(id +'-'+ mensagem + f'ID:{id}').encode("utf-8"), (self.host, self.port))
                     tcp = conexao_tcp_cliente()
                     tcp.settimeout(1.0)
                     msg = tcp.recv(1024)
@@ -249,7 +252,7 @@ class Cliente:
         CEND = '\33[0m'
         # Enviar broadcast com o nome de um arquivo, retornar os IDs de quem possui
         nodes_com_arq = []
-        self.cliente_socket.sendto(str(comando).encode("utf-8"), (self.host, self.port))
+        self.cliente_socket.sendto(str(id+'-'+comando).encode("utf-8"), (self.host, self.port))
 
         while True:
             try:
@@ -276,7 +279,7 @@ class Cliente:
         nome_arquivo = cmd[:cmd.find('-')]
 
         #Criar uma conexão TCP com um node através do seu ID e baixar o arquivo requisitado
-        self.cliente_socket.sendto(str(comando).encode("utf-8"), (self.host, self.port))
+        self.cliente_socket.sendto(str(id+'-'+comando).encode("utf-8"), (self.host, self.port))
         tcp = conexao_tcp_cliente()
         tcp.settimeout(3.0)
         
