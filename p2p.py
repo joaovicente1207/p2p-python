@@ -6,6 +6,7 @@ import time
 import pickle
 import random
 from timeit import default_timer as timer
+import sys
 
 connections = []
 id = str(random.randint(1,1000))
@@ -24,21 +25,12 @@ def meus_arquivos():
     # salva muma lista os nomes dos arquivos no diretorio
     return os.listdir()
 
-# funcao para enviar arquivo
-def enviar_arquivo(connection,nome):
-    file = open(nome,'rb')
-    data=pickle.dumps(file)
-    connection.send(data)
-
+# funcao que envia lista de arquivos no diretorio corrente do prog
 def enviar_lista_arquivos(connection):
     data=pickle.dumps(meus_arquivos())
     connection.send(data)
 
-def enviar_imagem(connection,nome_imagem):
-    img = open(nome_imagem,'rb')
-    data=pickle.dumps(img)
-    connection.send(data)
-
+# funcao que realiza a conexao TCP da parte servidor
 def conexao_tcp_server(HOST='',PORT=5000):
     tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     tcp.settimeout(3.0)
@@ -50,6 +42,7 @@ def conexao_tcp_server(HOST='',PORT=5000):
     # print ('Conectado com:', cliente)
     return con,cliente,tcp
 
+# funcao para escrever o log num arquivo .txt
 def escreve_log(palavra, filename='log.txt'):
         f = open(filename, "a")
         f.write("{0} -- {1}\n".format(datetime.now().strftime("%d-%m-%Y %H:%M"), palavra))
@@ -67,9 +60,13 @@ class Servidor:
          
 
     def espera_conexoes(self):
+        # para cor vermelha
+        CRED = '\33[91m'
+        # para finalizar print color
+        CEND = '\33[0m'
         while(True):
             mensagem, sourceAddress = self.server_socket.recvfrom(128)
-            print("conectado com %s, mensagem: %s"%(sourceAddress, mensagem.decode("utf-8")))
+            # print("conectado com %s, mensagem: %s"%(sourceAddress, mensagem.decode("utf-8")))
             mensagem_decode = mensagem.decode("utf-8")
             id_c = mensagem_decode[0:mensagem_decode.find('-')]
             mensagem_decode = mensagem_decode[mensagem_decode.find('-')+1:]
@@ -82,22 +79,21 @@ class Servidor:
                     try:
                         # abre o arquivo para descobrir seu tamanho e enviar junto com o id
                         file = open(nome_arquivo,'rb')
-                        tamanho_file = f', {getSize(nome_arquivo)} Bytes'
+                        tamanho_file = f', tamanho: {getSize(nome_arquivo)} Bytes'
                         file.close()
                         con,cliente,tcp = conexao_tcp_server()
                         con.send(str.encode('ID: '+ id + tamanho_file))
                         con.close()
                         tcp.close()
-                        escreve_log('Pesquisa de arquivo, node:'+id_c)                       
+                        escreve_log('Pesquisa de arquivo, node: '+id_c)                       
                     except socket.timeout:
-                        print('Troca interrompida')
                         pass
                     except Exception as E:
                         print(f'Exception do Win (espera_conexoes): {E}')
 
-            elif 'lista arquivos' in mensagem_decode:
+            elif 'listar arquivos' in mensagem_decode:
                 # pegar o ID e verificar se e ID solicitado
-                num_id = mensagem_decode.replace('lista arquivosID:','') # pega só ID
+                num_id = mensagem_decode.replace('listar arquivosID:','') # pega só ID
 
                 if num_id == id:
                     try:
@@ -148,9 +144,12 @@ class Servidor:
                     file.close()
                     fim = time.time()
                     tempo_total = str(fim-inicio)
-                    escreve_log('Envio do arquivo '+nome_arquivo+', tempo total: '+tempo_total+', Node:'+id_c)
+                    escreve_log('Envio do arquivo '+nome_arquivo+', tempo total: '+tempo_total+' s, Node:'+id_c)
 
                     print('Envio de arquivo concluído\n')
+            else:
+                print(f'{CRED}Comando invalido!{CEND}')
+                print('Para lista de comandos digite: comandos')
 
     def local_ip():
         hostname = socket.gethostname()
@@ -186,6 +185,7 @@ class Cliente:
 
     def pedir_usuarios(self):
         self.cliente_socket.sendto(str(id+'-pedir_IDs').encode("utf-8"), (self.host, self.port))
+        connections.clear()
         try: 
             while True:
                 try:
@@ -273,7 +273,7 @@ class Cliente:
         CGREEN = '\33[92m'
         CEND = '\33[0m'
         cmd = comando
-        print(f'cmd: {cmd}')
+
         cmd = cmd.replace('baixar arquivo:','')
         # pega o nome do arquivo
         nome_arquivo = cmd[:cmd.find('-')]
@@ -302,13 +302,15 @@ def print_menu():
     CBLUE_FUNDO = '\33[104m'
     CEND = '\33[0m'
     print('-*'* 10 + f' {CBLUE_FUNDO}COMANDOS{CEND} '+ '-*'* 10)
-    print('Lista de pares conectados: conexoes')
-    print('Procurar arquivo:          procurar arquivo:nome.formato')
-    print('Baixar arquivo:            baixar arquivo:nome.formato-ID')
-    print('Pedir listas de arquivos:  lista arquivos')
-    print('Listar nodes da rede:      usuarios')
-    print('Fechar programa:           exit')
-    print('limpar terminal:           clear\n')
+    print('Descobrir o ID do prog:          meu id')
+    print('Arquivos no diretorio corrente:  meus arquivos')
+    print('Procurar arquivo:                procurar arquivo:nome.formato')
+    print('Baixar arquivo:                  baixar arquivo:nome.formato-ID')
+    print('Pedir listas de arquivos:        listar arquivos')
+    print('Listar nodes da rede:            usuarios')
+    print('Comandos disponiveis:            comandos')
+    print('limpar terminal:                 clear')
+    print('Fechar programa:                 exit\n')
 
 def main():
     # para limpar o terminal assim que iniciar o programa
@@ -344,12 +346,12 @@ def main():
             print(f'{CYELLOW}Meus arquivos{CEND}: {lista_arquivos}\n')
             comando = ''
 
-        if 'comandos' in comando:
+        elif 'comandos' in comando:
             print_menu()
             comando = ''
 
-        # ex: procurar_arquivo:vasco.jpg
-        if 'procurar arquivo' in comando:
+        # ex: procurar arquivo:vasco.jpg
+        elif 'procurar arquivo' in comando:
             nome_arquivo_proc = comando.replace('procurar arquivo:','')
             lista_arquivos = meus_arquivos()
             if nome_arquivo_proc in lista_arquivos:
@@ -358,33 +360,43 @@ def main():
                 cliente.procurar_arquivo(comando)
             comando = ''
         
-        # ex: baixar_arquivo:vasco.jpg-ID
-        if 'baixar arquivo' in comando:
-            cliente.solicita_arquivo(comando)
+        # ex: baixar arquivo:vasco.jpg-ID
+        elif 'baixar arquivo' in comando:
+            aux = comando
+            # tratando o caso de tentar baixar arquivo que ja possui
+            nome_arquivo_ID = aux.replace('baixar arquivo:','')
+            nome_arquivo = nome_arquivo_ID[:nome_arquivo_ID.find('-')]
+            if nome_arquivo in lista_arquivos:
+                print(f'{CRED}Você já possui o arquivo{CEND} {nome_arquivo}\n')
+            else:
+                cliente.solicita_arquivo(comando)
             comando = ''
+
         # para pedir lista de arquivos de todos os servidores ativos
-        if comando == 'lista arquivos':
+        elif comando == 'listar arquivos':
             cliente.pedir_listas_arquivos(comando)
             comando = ''
 
-        if comando == 'usuarios':
+        elif comando == 'usuarios':
             cliente.pedir_usuarios()
             print(f'{CYELLOW}Lista de Nodes na rede{CEND}: {connections}\n')
             comando = ''
 
-        if comando == 'meu id':
+        elif comando == 'meu id':
             print(f'{CBRANCA_FUNDO}ID node{CEND}: {id}\n')
             comando = ''
 
-        if comando == 'exit':
-            exit(0)
+        elif comando == 'exit':
+            sys.exit()
 
-        if comando == 'clear':
+        elif comando == 'clear':
             comando = ''
             print("\x1b[2J\x1b[1;1H")
-        else:
+
+        else:           
+            print(f'{CRED}Comando invalido!{CEND}')
+            print('Para listar comandos digite: comandos\n')
             pass
-        time.sleep(1)
 
  
         
