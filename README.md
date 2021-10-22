@@ -1,2 +1,2 @@
-# p2p-trab
-Trabalho de Redes
+# Rede P2P (peer-to-peer)
+
